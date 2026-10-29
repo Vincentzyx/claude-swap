@@ -1269,7 +1269,7 @@ Commands:
   %(prog)s priority                   list account priorities
   %(prog)s run <num|email> [-- ...]   run as an account, this terminal only
   %(prog)s run                        run the current dir's mapped account
-  %(prog)s desktop [list|save|login|switch|sync|launcher|recover]  manage macOS Desktop logins
+  %(prog)s desktop [code|list|save|login|switch|sync|launcher|recover]  manage macOS Desktop logins
   %(prog)s map <num|email> [path]     map a directory to an account
   %(prog)s map                        list directory mappings
   %(prog)s unmap [path]               remove a directory mapping

@@ -1,6 +1,6 @@
 [project]
 name = "claude-swap"
-version = "0.30.0b1+vin.1"
+version = "0.30.0b1+vin.2"
 description = "Claude Code and macOS Desktop account switcher with stable weekly-quota routing"
 readme = "README.md"
 requires-python = ">=3.12"

@@ -240,6 +240,10 @@ def sync_after_switch(manager: DesktopManager, uuid: str, warnings: list[str]) -
 def main(argv: list[str]) -> None:
     if sys.platform != "darwin":
         raise SwitchError("Desktop integration currently supports macOS only")
+    if argv and argv[0] == "code":
+        from claude_swap.desktop_code.cli import main as code_main
+        code_main(argv[1:])
+        return
     from claude_swap.switcher import ClaudeAccountSwitcher
     parser = argparse.ArgumentParser(prog="cswap desktop")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -249,6 +253,7 @@ def main(argv: list[str]) -> None:
         sub.add_parser(name)
     sub.add_parser("sync").add_argument("mode", choices=("on", "off"))
     sub.add_parser("launcher").add_argument("name", choices=LAUNCHERS)
+    sub.add_parser("code", help="Request-only native Code routing; see cswap desktop code --help")
     args = parser.parse_args(argv)
     switcher = ClaudeAccountSwitcher()
     manager = DesktopManager(switcher.backup_dir)
@@ -272,6 +277,8 @@ def main(argv: list[str]) -> None:
         manager.configure(launcher=args.name)
     elif args.command == "sync":
         if args.mode == "on":
+            if manager.settings().get("codeRouting"):
+                raise SwitchError("Turn off request-only routing before enabling desktop login sync")
             for account in (switcher._get_sequence_data() or {}).get("accounts", {}).values():
                 manager.validate(account.get("uuid", ""))
         manager.configure(sync=args.mode == "on")

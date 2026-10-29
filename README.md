@@ -1,4 +1,4 @@
-> 自用 fork：已集成 macOS Claude Desktop 登录快照与 CLI/TUI/auto 联动，以及参考 Magpie 的稳定周额度优先策略。使用方法、恢复流程和验证限制见 [中文说明](docs/desktop-smart.zh-CN.md)。上游默认策略保持兼容，Smart 可通过 `cswap config set autoswitch.strategy smart` 开启。
+> 自用 fork：已集成 macOS Claude Desktop 登录快照、保持桌面登录不变的 Code 请求账号切换，以及参考 Magpie 的稳定周额度优先策略。使用方法、恢复流程和验证限制见 [中文说明](docs/desktop-smart.zh-CN.md)。上游默认策略保持兼容，Smart 可通过 `cswap config set autoswitch.strategy smart` 开启。
 
 # claude-swap
 
