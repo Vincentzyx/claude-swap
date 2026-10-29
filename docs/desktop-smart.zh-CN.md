@@ -23,7 +23,41 @@ cswap auto --dry-run --once
 
 5h 与 7d 阈值仍可分别配置。此版本未推算账号容量或消耗速度：不同套餐的百分比不可当作相同 token 数。
 
-## 原生 Desktop Code 请求账号切换（推荐，macOS）
+## 原生凭据热更新研究（不加模型请求转发）
+
+2026-10-29 的本机状态：请求转发已关闭，`ccg/ccgu/ccgr` 恢复直接启动 Claude，未接入过正式转发进程、未生成正式转发证书。当前桌面进程没有被重启，未修改它的 Cookie 或登录 token。
+
+### 进程结构
+
+本机原生 Code 不是直接在 Electron 界面进程中运行模型循环。桌面主进程通过 Agent SDK 启动独立的 Claude Code 子进程，使用 stdin/stdout 的 stream-json 消息交换输入、审批、结果和控制消息。桌面主进程持有并管理这些流。
+
+### 已验证的原生能力
+
+在真实 Claude Code 2.1.302、`claude-desktop` 入口下，用本机 HTTP 服务代替模型服务端（只返回合成 SSE，不向任何上游转发）完成三次请求：
+
+1. 启动时显式提供 token A，第一请求用 A。
+2. 修改隔离配置目录中的 `.credentials.json` 为 B，第二请求仍用 A。
+3. 由持有 stdin 的测试父进程发送 `update_environment_variables`，把 `CLAUDE_CODE_OAUTH_TOKEN` 改为 B；收到成功控制响应，第三请求用 B。
+
+三个请求在同一 Code PID 中完成，没有重启，没有 TLS 转发，也没有读取真实账号凭据。这证明运行时能热换 token，但不证明 `cswap` 已能控制桌面拥有的输入管道，也没有验证真实跨账号推理的服务端行为。
+
+### 当前接入障碍
+
+- 桌面启动 Code 时显式提供它自己的 OAuth token，所以普通 CLI 对凭据文件/钥匙串的重新读取，不会自动覆盖这个 token。
+- `update_environment_variables` 是输入流控制消息；它不是一个写入配置文件就会触发的机制。当前允许更新的键是 `CLAUDE_CODE_OAUTH_TOKEN` 和 `CLAUDE_CODE_SESSION_ACCESS_TOKEN`。
+- 桌面自己的 token keeper 会向这些流推送续期 token，但推送前检查会话启动身份和当前桌面账号；不能简单把其他账号的 token 写进桌面缓存来复用此通道。
+- `CLAUDE_CODE_HOST_CREDS_FILE` 是另一路宿主凭据刷新来源，带文件权限、宿主 PID/启动时间、有效期和端点一致性检查。其读取主要接入初始化/认证刷新回调，不是无条件监听配置变化后立即换账号的通道；已有宿主刷新回调时还会跳过该文件初始化。
+- 在本机桌面 2.26454.2 的启动与 token keeper 实现中，尚未找到可供外部 `cswap` 稳定调用的凭据更新端点。当前桌面也没有运行原生 Code 子进程，无法对它做真实管道接入验证。
+
+因此当前结论是：**原生 Code 的热更新能力已验证；无需改造桌面即可让外部 cswap 自动调用这项能力，尚未确认可行。** 不通过调试器注入、不替换/重签应用、不写入未确认有效的缓存，也没有实现一个名义上的“直切”功能。后续若能找到宿主支持的 IPC/credential provider 入口，应在此层接入，保持模型网络请求直连。
+
+复现测试：
+
+```sh
+CSWAP_TEST_CLAUDE_BINARY=/path/to/claude uv run pytest -n 0 tests/test_desktop_direct_runtime.py
+```
+
+## 本机请求转发方案（已按用户要求停用）
 
 桌面保持原来的 claude.ai 登录和工作区，模型列表与组织策略也仍由该登录决定。只在本机转发原生 Code 的 `/v1/messages`、`/v1/messages/count_tokens`，使用 `cswap` 当前活动的 OAuth 账号；不改桌面 Cookie 或桌面 token 缓存。CLI/TUI/auto 每次切换后，下一条模型请求读取新账号，已开始的响应保持原账号直到结束。无需为每次账号切换重启桌面或 Code 进程。
 

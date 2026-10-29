@@ -1,3 +1,5 @@
+> 当前本机请求转发方案已停用，桌面启动命令已恢复直启。正在研究不加转发的原生凭据热更新；已验证 Code 进程的控制消息能力，但尚未确认外部接入桌面持有的控制通道。见[研究结论](docs/desktop-smart.zh-CN.md#原生凭据热更新研究不加模型请求转发)。
+
 > 自用 fork：已集成 macOS Claude Desktop 登录快照、保持桌面登录不变的 Code 请求账号切换，以及参考 Magpie 的稳定周额度优先策略。使用方法、恢复流程和验证限制见 [中文说明](docs/desktop-smart.zh-CN.md)。上游默认策略保持兼容，Smart 可通过 `cswap config set autoswitch.strategy smart` 开启。
 
 # claude-swap
