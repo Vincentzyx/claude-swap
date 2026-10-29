@@ -1188,7 +1188,7 @@ class AutoSwitchEngine:
                 else (100.0 - active_headroom) < thresholds[current]
             )
             if below:
-                if settings.strategy != "consume-first" and not priority_mode:
+                if settings.strategy not in ("consume-first", "smart") and not priority_mode:
                     self._emit(
                         NoSwitchEvent(
                             reason="below-threshold",
@@ -1310,7 +1310,7 @@ class AutoSwitchEngine:
             self._emit(NoSwitchEvent(reason="no-candidates"))
             return TickOutcome.BLOCKED
 
-        consume_first = settings.strategy == "consume-first"
+        consume_first = settings.strategy in ("consume-first", "smart")
 
         def _rank(**kw):
             """Rank with the no-return bar, and WITHOUT it if that empties AND
@@ -1507,8 +1507,10 @@ class AutoSwitchEngine:
                 # real story may be exhausted candidates.
                 self._emit(
                     NoSwitchEvent(
-                        reason="already-consuming-soonest",
-                        detail="no sooner-resetting account with room to spare",
+                        reason="smart-sticky" if settings.strategy == "smart" else "already-consuming-soonest",
+                        detail=("no healthy candidate has a sufficient weekly-reset advantage"
+                                if settings.strategy == "smart"
+                                else "no sooner-resetting account with room to spare"),
                     )
                 )
                 return TickOutcome.NO_ACTION
@@ -2251,6 +2253,10 @@ class AutoSwitchEngine:
                         reset_ts is None
                         or active_reset_ts is None
                         or reset_ts >= active_reset_ts
+                        or (settings.strategy == "smart" and (
+                            active_reset_ts - reset_ts < settings.reset_advantage_seconds
+                            or int(reset_ts // 3600) >= int(active_reset_ts // 3600)
+                        ))
                     ):
                         continue
                 elif active_headroom is not None:
@@ -2279,7 +2285,12 @@ class AutoSwitchEngine:
             elif consume_first:
                 # Soonest weekly reset first (unknown resets sort last), most
                 # policy headroom breaks ties, then sequence order.
-                key = (reset_ts if reset_ts is not None else float("inf"), -lh)
+                if settings.strategy == "smart":
+                    # Stable hour buckets, as in Magpie Smart. Slot order breaks
+                    # ties; small usage fluctuations must not shuffle accounts.
+                    key = (int(reset_ts // 3600) if reset_ts is not None else float("inf"),)
+                else:
+                    key = (reset_ts if reset_ts is not None else float("inf"), -lh)
             else:
                 key = (-lh,)
             qualifying.append((key, num))

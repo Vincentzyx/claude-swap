@@ -7200,3 +7200,83 @@ class TestWeeklyThreshold:
         h.engine.apply_threshold(72.0)
         assert h.switcher._poll_inputs_override == (72.0, 97.0, ())
         assert h.engine.settings.weekly_threshold == 97.0
+
+
+class TestSmartStrategy:
+    def harness(self, temp_home):
+        h = EngineHarness(temp_home, strategy="smart")
+        for n in (1, 2, 3):
+            h.seed(n, f"{n}@example.com")
+        h.make_live("1@example.com", 1)
+        return h
+
+    def test_uses_expiring_week_not_largest_balance(self, temp_home):
+        h = self.harness(temp_home)
+        result = h.tick_with_usage({
+            "1": _usage7(20, 20, _iso_at(h.clock() + 172800)),
+            "2": _usage7(30, 60, _iso_at(h.clock() + 7200)),
+            "3": _usage7(1, 1, _iso_at(h.clock() + 259200)),
+        })
+        assert result is TickOutcome.SWITCHED
+        assert h.active_number() == 2
+
+    def test_small_reset_advantage_keeps_active(self, temp_home):
+        h = self.harness(temp_home)
+        assert h.tick_with_usage({
+            "1": _usage7(20, 20, _iso_at(h.clock() + 7200)),
+            "2": _usage7(10, 10, _iso_at(h.clock() + 6000)),
+            "3": _usage7(10, 10, _iso_at(h.clock() + 9000)),
+        }) is TickOutcome.NO_ACTION
+        assert h.active_number() == 1
+
+    def test_over_line_escapes_without_reset_advantage(self, temp_home):
+        h = self.harness(temp_home)
+        assert h.tick_with_usage({
+            "1": _usage7(95, 20, _iso_at(h.clock() + 7200)),
+            "2": _usage7(10, 10, _iso_at(h.clock() + 7500)),
+            "3": _usage7(99, 10, _iso_at(h.clock() + 3600)),
+        }) is TickOutcome.SWITCHED
+        assert h.active_number() == 2
+
+    def test_no_flip_to_later_reset_after_cooldown(self, temp_home):
+        h = self.harness(temp_home)
+        usage = {
+            "1": _usage7(10, 10, _iso_at(h.clock() + 172800)),
+            "2": _usage7(30, 60, _iso_at(h.clock() + 7200)),
+            "3": _usage7(1, 1, _iso_at(h.clock() + 259200)),
+        }
+        assert h.tick_with_usage(usage) is TickOutcome.SWITCHED
+        h.clock.advance(1000)
+        assert h.tick_with_usage(usage) is TickOutcome.NO_ACTION
+        assert h.active_number() == 2
+
+
+    def test_smart_honours_cooldown(self, temp_home):
+        h = self.harness(temp_home)
+        usage = {
+            "1": _usage7(10, 10, _iso_at(h.clock() + 172800)),
+            "2": _usage7(30, 60, _iso_at(h.clock() + 72000)),
+            "3": _usage7(1, 1, _iso_at(h.clock() + 259200)),
+        }
+        assert h.tick_with_usage(usage) is TickOutcome.SWITCHED
+        usage["3"] = _usage7(1, 1, _iso_at(h.clock() + 7200))
+        assert h.tick_with_usage(usage) is TickOutcome.NO_ACTION
+        assert h.active_number() == 2
+        assert any(isinstance(e, NoSwitchEvent) and e.reason == "cooldown" for e in h.events)
+
+    def test_unknown_weekly_reset_keeps_healthy_active(self, temp_home):
+        h = self.harness(temp_home)
+        assert h.tick_with_usage({
+            "1": _usage7(20, 20),
+            "2": _usage7(10, 10, _iso_at(h.clock() + 6000)),
+            "3": _usage7(10, 10),
+        }) is TickOutcome.NO_ACTION
+
+    def test_spent_early_reset_is_not_a_destination(self, temp_home):
+        h = self.harness(temp_home)
+        assert h.tick_with_usage({
+            "1": _usage7(20, 20, _iso_at(h.clock() + 172800)),
+            "2": _usage7(98, 20, _iso_at(h.clock() + 6000)),
+            "3": _usage7(10, 10, _iso_at(h.clock() + 72000)),
+        }) is TickOutcome.SWITCHED
+        assert h.active_number() == 3

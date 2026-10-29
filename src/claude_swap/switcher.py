@@ -6967,7 +6967,28 @@ class ClaudeAccountSwitcher:
             "or run from a normal shell."
         )
 
-    def _perform_switch(
+    def _perform_switch(self, target_account: str, emit_output: bool = True,
+                        force_activate: bool = False, provenance: dict | None = None) -> dict:
+        from claude_swap.desktop import DesktopManager, sync_after_switch
+        desktop = DesktopManager(self.backup_dir)
+        if not desktop.enabled():
+            return self._perform_switch_core(target_account, emit_output, force_activate, provenance)
+        # Serialize the combined operation, not just each CLI/Desktop half.
+        # Otherwise concurrent TUI/auto switches could land on different users.
+        with FileLock(desktop.root / "sync.lock"):
+            uuid = (self._get_sequence_data() or {}).get("accounts", {}).get(str(target_account), {}).get("uuid")
+            if not uuid:
+                raise SwitchError("Desktop sync requires a verified OAuth account UUID")
+            desktop.validate(uuid)
+            result = self._perform_switch_core(target_account, emit_output, force_activate, provenance)
+            count = len(result["warnings"])
+            sync_after_switch(desktop, uuid, result["warnings"])
+            if emit_output:
+                for message in result["warnings"][count:]:
+                    warning(message)
+            return result
+
+    def _perform_switch_core(
         self,
         target_account: str,
         emit_output: bool = True,

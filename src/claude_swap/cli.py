@@ -863,7 +863,8 @@ Defaults live in settings.json in the backup root; flags override them.
         choices=AUTOSWITCH_STRATEGIES,
         default=None,
         help=(
-            "Target selection: 'best' (most quota left; default) or "
+            "Target selection: 'best' (most quota left; default), "
+            "'smart' (stable weekly-reset priority with a minimum advantage), "
             "'consume-first' (proactively use the account whose weekly window "
             "resets soonest), or 'priority-consume-first' (highest account "
             "priority, then soonest weekly reset; only targets below all switch lines)"
@@ -1202,6 +1203,13 @@ def main() -> None:
     if len(sys.argv) > 1 and sys.argv[1] == "config":
         _config_command(sys.argv[2:])
         return
+    if argv and argv[0] == "desktop":
+        from claude_swap.desktop import main as desktop_main
+        try:
+            desktop_main(argv[1:])
+        except (ClaudeSwitchError, OSError, ValueError) as exc:
+            sys.exit(f"Desktop: {exc}")
+        return
     if argv and argv[0] == "map":
         _map_command(argv[1:])
         return
@@ -1261,6 +1269,7 @@ Commands:
   %(prog)s priority                   list account priorities
   %(prog)s run <num|email> [-- ...]   run as an account, this terminal only
   %(prog)s run                        run the current dir's mapped account
+  %(prog)s desktop [list|save|login|switch|sync|launcher|recover]  manage macOS Desktop logins
   %(prog)s map <num|email> [path]     map a directory to an account
   %(prog)s map                        list directory mappings
   %(prog)s unmap [path]               remove a directory mapping

@@ -46,6 +46,11 @@ def _write_cache(path, version, timestamp=None):
     }))
 
 
+@pytest.fixture(autouse=True)
+def upstream_version_for_upstream_upgrade_tests(monkeypatch):
+    monkeypatch.setattr("claude_swap.__version__", "0.28.0")
+
+
 class TestCheckForUpdate:
     @patch("claude_swap.update_check.urllib.request.urlopen")
     def test_newer_version_available(self, mock_urlopen, tmp_path, monkeypatch):
@@ -808,3 +813,21 @@ class TestRunSelfUpgradeWindows:
         assert "uv tool upgrade claude-swap" in err
         assert "pipx upgrade claude-swap" in err
         assert "pip install --upgrade claude-swap" in err
+
+
+def test_fork_does_not_offer_pypi_update():
+    with patch("claude_swap.update_check._latest_version") as lookup:
+        assert check_for_update("0.30.0b1+vin.1") is None
+        lookup.assert_not_called()
+
+
+def test_fork_upgrade_stays_on_our_repository():
+    with patch("claude_swap.update_check._detect_install_method", return_value="uv"), \
+         patch("claude_swap.update_check.subprocess.run") as run, \
+         patch("claude_swap.update_check._installed_version_on_disk", return_value="0.30.0b1+vin.2"), \
+         patch("claude_swap.update_check.held_back_release_notice", return_value=None):
+        run.return_value.returncode = 0
+        assert run_self_upgrade("0.30.0b1+vin.1") == 0
+        command = run.call_args.args[0]
+        assert "git+https://github.com/Vincentzyx/claude-swap.git@main" in command
+        assert command[:3] == ["uv", "tool", "install"]

@@ -268,6 +268,8 @@ def held_back_release_notice(current_version: str) -> str | None:
 
 def check_for_update(current_version: str) -> str | None:
     """Return a notification string if a newer version exists, else None."""
+    if "+vin." in current_version:
+        return None  # PyPI releases cannot describe updates to this fork.
     try:
         method = _detect_install_method()
         cached_data = read_cache(CACHE_PATH, CACHE_TTL)
@@ -360,6 +362,12 @@ def run_self_upgrade(current_version: str | None = None) -> int:
         "uv": ["uv", "tool", "upgrade", "claude-swap"],
         "pipx": ["pipx", "upgrade", "claude-swap"],
     }
+    if "+vin." in current_version:
+        commands = {
+            "uv": ["uv", "tool", "install", "--force", "--from",
+                   "git+https://github.com/Vincentzyx/claude-swap.git@main", "claude-swap"],
+            "pipx": ["pipx", "install", "--force", "git+https://github.com/Vincentzyx/claude-swap.git@main"],
+        }
     cmd = commands.get(method or "")
     if cmd is None:
         error(
@@ -410,7 +418,7 @@ def run_self_upgrade(current_version: str | None = None) -> int:
     elif before and after:
         print(f"claude-swap is still at {after}.")
 
-    if method == "uv":
+    if method == "uv" and "+vin." not in current_version:
         notice = held_back_release_notice(current_version)
         if notice:
             warning(notice)

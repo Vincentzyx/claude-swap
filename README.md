@@ -1,3 +1,5 @@
+> 自用 fork：已集成 macOS Claude Desktop 登录快照与 CLI/TUI/auto 联动，以及参考 Magpie 的稳定周额度优先策略。使用方法、恢复流程和验证限制见 [中文说明](docs/desktop-smart.zh-CN.md)。上游默认策略保持兼容，Smart 可通过 `cswap config set autoswitch.strategy smart` 开启。
+
 # claude-swap
 
 Multi-account switcher for Claude Code. Easily switch between multiple Claude accounts without logging out, or let it switch for you before you hit a rate limit. Track usage for every account in a live dashboard, and run accounts in parallel. Works with both the Claude Code CLI and the VS Code extension.
